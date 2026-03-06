@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QEBD Health – 스마트 헬스 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: rgba(255,255,255,0.05);
+    --surface2: rgba(255,255,255,0.08);
+    --border: rgba(255,255,255,0.1);
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --gold: #fbbf24;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(0,212,255,0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(124,58,237,0.07) 0%, transparent 50%);
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,14,26,0.8);
+    backdrop-filter: blur(20px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:700; }
+  .logo-icon {
+    width:36px; height:36px; border-radius:10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display:flex; align-items:center; justify-content:center; font-size:18px;
+  }
+  .header-right { display:flex; align-items:center; gap:12px; }
+  .avatar {
+    width:36px; height:36px; border-radius:50%;
+    background: linear-gradient(135deg, var(--accent2), #ec4899);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+  }
+  .live-badge {
+    display:flex; align-items:center; gap:6px;
+    background: rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3);
+    border-radius:20px; padding:4px 12px; font-size:12px; color:var(--green);
+  }
+  .live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 1.5s infinite; }
+
+  /* ── Layout ── */
+  main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
+  .bento { display:grid; gap:16px; }
+  .row1 { grid-template-columns: 280px 1fr 1fr; }
+  .row2 { grid-template-columns: 1fr 1fr; }
+  .row3 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  @media(max-width:900px) {
+    .row1,.row2,.row3 { grid-template-columns:1fr; }
+  }
+
+  /* ── Card Base ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .card:hover { transform:translateY(-2px); border-color: rgba(255,255,255,0.18); }
+  .card-label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+
+  /* ── QEBD Score Card ── */
+  .qebd-card {
+    background: linear-gradient(135deg, rgba(0,212,255,0.12), rgba(124,58,237,0.12));
+    border-color: rgba(0,212,255,0.25);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:28px 20px;
+  }
+  .qebd-ring {
+    position:relative; width:130px; height:130px; margin-bottom:16px;
+  }
+  .qebd-ring svg { transform:rotate(-90deg); }
+  .qebd-ring circle { fill:none; stroke-width:10; }
+  .ring-bg { stroke: rgba(255,255,255,0.08); }
+  .ring-fill {
+    stroke: url(#qbGrad);
+    stroke-linecap: round;
+    stroke-dasharray: 345;
+    stroke-dashoffset: 52;
+    transition: stroke-dashoffset 1.5s cubic-bezier(0.4,0,0.2,1);
+  }
+  .qebd-num {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:34px; font-weight:800; color:var(--accent);
+  }
+  .qebd-label { font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .qebd-sub { font-size:11px; color:var(--text2); }
+  .qebd-status {
+    margin-top:12px; padding:5px 16px; border-radius:20px;
+    background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3);
+    font-size:12px; color:var(--green); font-weight:600;
+  }
+
+  /* ── ECG Card ── */
+  .ecg-card { grid-column: span 2; }
+  .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .card-title { font-size:14px; font-weight:600; }
+  .device-tag {
+    font-size:10px; padding:3px 10px; border-radius:20px;
+    background: rgba(124,58,237,0.2); border:1px solid rgba(124,58,237,0.4);
+    color:#a78bfa;
+  }
+  .device-tag.fit3 {
+    background: rgba(0,212,255,0.12); border-color:rgba(0,212,255,0.3); color:var(--accent);
+  }
+  .ecg-canvas-wrap { position:relative; height:90px; }
+  canvas.ecg-canvas { width:100% !important; height:90px !important; }
+
+  /* ── HR Chart ── */
+  .chart-wrap { height:120px; position:relative; }
+
+  /* ── Alert Card ── */
+  .alert-card { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+  .alert-item {
+    display:flex; align-items:flex-start; gap:12px;
+    padding:12px; border-radius:12px;
+    background: rgba(255,255,255,0.04);
+    margin-bottom:8px;
+  }
+  .alert-item:last-child { margin-bottom:0; }
+  .alert-icon {
+    width:34px; height:34px; border-radius:10px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+  .alert-icon.warn { background:rgba(245,158,11,0.2); }
+  .alert-icon.info { background:rgba(0,212,255,0.15); }
+  .alert-icon.ok { background:rgba(16,185,129,0.15); }
+  .alert-text { font-size:13px; font-weight:500; margin-bottom:2px; }
+  .alert-sub { font-size:11px; color:var(--text2); }
+  .alert-time { font-size:10px; color:var(--text2); margin-left:auto; white-space:nowrap; }
+
+  /* ── Reward Card ── */
+  .reward-card { background: linear-gradient(135deg, rgba(251,191,36,0.08), rgba(245,158,11,0.05)); border-color:rgba(251,191,36,0.25); }
+  .points-display { display:flex; align-items:baseline; gap:6px; margin-bottom:16px; }
+  .points-num { font-size:40px; font-weight:800; color:var(--gold); }
+  .points-label { font-size:14px; color:var(--text2); }
+  .badge-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .badge {
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:10px 14px; border-radius:14px;
+    background:rgba(255,255,255,0.06); border:1px solid var(--border);
+    font-size:10px; color:var(--text2);
+  }
+  .badge .b-icon { font-size:22px; }
+  .badge.unlocked { border-color:rgba(251,191,36,0.4); background:rgba(251,191,36,0.08); color:var(--gold); }
+  .progress-bar-wrap { margin-top:4px; }
+  .progress-label { display:flex; justify-content:space-between; font-size:11px; color:var(--text2); margin-bottom:6px; }
+  .progress-bar {
+    height:6px; background:rgba(255,255,255,0.08); border-radius:10px; overflow:hidden;
+  }
+  .progress-fill {
+    height:100%; border-radius:10px;
+    background: linear-gradient(90deg, var(--gold), #f97316);
+    width: 68%; transition:width 1.5s ease;
+  }
+
+  /* ── Metric Cards ── */
+  .metric-value { font-size:28px; font-weight:700; margin-bottom:2px; }
+  .metric-unit { font-size:12px; color:var(--text2); }
+  .metric-change {
+    display:inline-flex; align-items:center; gap:3px;
+    font-size:11px; margin-top:6px;
+    padding:2px 8px; border-radius:10px;
+  }
+  .metric-change.up { background:rgba(16,185,129,0.15); color:var(--green); }
+  .metric-change.down { background:rgba(239,68,68,0.15); color:var(--red); }
+  .metric-change.neutral { background:rgba(148,163,184,0.15); color:var(--text2); }
+  .metric-mini-chart { margin-top:10px; height:36px; }
+  .hr-value { color:var(--red); }
+  .spo2-value { color:var(--accent); }
+  .sleep-value { color:#a78bfa; }
+  .stress-value { color:var(--orange); }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size:12px; font-weight:600; color:var(--text2);
+    text-transform:uppercase; letter-spacing:1.5px;
+    margin: 20px 0 12px; display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  /* ── Animations ── */
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+  .card { animation: fadeIn 0.5s ease both; }
+  .card:nth-child(1){animation-delay:0s}
+  .card:nth-child(2){animation-delay:.07s}
+  .card:nth-child(3){animation-delay:.14s}
+
+  /* ── Tabs (Device Toggle) ── */
+  .tab-row { display:flex; gap:6px; margin-bottom:14px; }
+  .tab-btn {
+    padding:5px 14px; border-radius:20px; font-size:12px; font-weight:500;
+    border:1px solid var(--border); background:transparent; color:var(--text2); cursor:pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn.active { background:rgba(0,212,255,0.15); border-color:rgba(0,212,255,0.4); color:var(--accent); }
+
+  /* ── Bottom nav (mobile feel) ── */
+  .bottom-note {
+    text-align:center; padding:24px; font-size:11px; color:var(--text2);
+    margin-top:8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">💗</div>
+    <span>QEBD Health</span>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="live-dot"></div> LIVE
+    </div>
+    <div style="font-size:12px;color:var(--text2)">연결됨: Fit3 · ATP-C130</div>
+    <div class="avatar">PJ</div>
+  </div>
+</header>
+
+<main>
+  <!-- Row 1 -->
+  <div class="section-title">🧠 QEBD 스코어 &amp; 실시간 모니터링</div>
+  <div class="bento row1">
+
+    <!-- QEBD Score -->
+    <div class="card qebd-card">
+      <div class="card-label">오늘의 QEBD 지수</div>
+      <div class="qebd-ring">
+        <svg width="130" height="130" viewBox="0 0 130 130">
+          <defs>
+            <linearGradient id="qbGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00d4ff"/>
+              <stop offset="100%" stop-color="#7c3aed"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-bg" cx="65" cy="65" r="55"/>
+          <circle class="ring-fill" cx="65" cy="65" r="55" id="ringFill"/>
+        </svg>
+        <div class="qebd-num" id="qebdNum">85</div>
+      </div>
+      <div class="qebd-label">개인 건강 지수</div>
+      <div class="qebd-sub">AI 학습 기반 개인 베이스라인 대비</div>
+      <div class="qebd-status">✓ 정상 범위 내</div>
+      <div style="margin-top:14px;font-size:11px;color:var(--text2);text-align:center;line-height:1.6">
+        Galaxy Fit3 + ATP-C130<br>크로스 분석 신뢰도 <span style="color:var(--accent)">92%</span>
+      </div>
+    </div>
+
+    <!-- ECG Live -->
+    <div class="card ecg-card">
+      <div class="card-header">
+        <div>
+          <div class="card-label">실시간 심전도 (ECG)</div>
+          <div class="card-title">ATP-C130 패치 · 홀터 심전계</div>
+        </div>
+        <span class="device-tag">ATP-C130</span>
+      </div>
+      <div class="ecg-canvas-wrap">
+        <canvas id="ecgChart"></canvas>
+      </div>
+      <div style="display:flex;gap:24px;margin-top:12px">
+        <div>
+          <div style="font-size:11px;color:var(--text2)">심박수</div>
+          <div style="font-size:22px;font-weight:700;color:var(--red)" id="bpmNum">72 <span style="font-size:13px;color:var(--text2)">bpm</span></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text2)">HRV</div>
+          <div style="font-size:22px;font-weight:700;color:var(--green)">48 <span style="font-size:13px;color:var(--text2)">ms</span></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text2)">QRS 간격</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">82 <span style="font-size:13px;color:var(--text2)">ms</span></div>
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div style="font-size:11px;color:var(--text2)">리듬 판정</div>
+          <div style="font-size:14px;font-weight:600;color:var(--green);margin-top:4px">정상동리듬 ✓</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HR Trend (Fit3) -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-label">24시간 심박 트렌드</div>
+          <div class="card-title">Samsung Galaxy Fit3</div>
+        </div>
+        <span class="device-tag fit3">Fit3</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="hrChart"></canvas>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;color:var(--text2)">
+        <span>최저 <b style="color:var(--accent)">54</b> bpm</span>
+        <span>평균 <b style="color:var(--text)">71</b> bpm</span>
+        <span>최고 <b style="color:var(--red)">118</b> bpm</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Alerts + Rewards -->
+  <div class="section-title">⚠️ QEBD 경고 &amp; 🏆 보상</div>
+  <div class="bento row2">
+
+    <!-- Alerts -->
+    <div class="card alert-card">
+      <div class="card-header">
+        <div class="card-title">🔔 이상 징후 알림</div>
+        <div style="font-size:11px;color:var(--text2)">오늘 3건</div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-icon warn">⚡</div>
+        <div style="flex:1">
+          <div class="alert-text" style="color:var(--orange)">심박 변이성(HRV) 주의</div>
+          <div class="alert-sub">개인 기준치 대비 -22% 하락 감지 (ATP-C130 + Fit3 교차검증)</div>
+        </div>
+        <div class="alert-time">14:32</div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-icon info">📊</div>
+        <div style="flex:1">
+          <div class="alert-text">스트레스 지수 상승</div>
+          <div class="alert-sub">오후 2시 이후 지속 상승 중. 휴식을 권장합니다</div>
+        </div>
+        <div class="alert-time">15:05</div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-icon ok">✅</div>
+        <div style="flex:1">
+          <div class="alert-text" style="color:var(--green)">수면 품질 회복</div>
+          <div class="alert-sub">어젯밤 수면 점수 88점. 베이스라인 복귀 완료</div>
+        </div>
+        <div class="alert-time">07:15</div>
+      </div>
+      <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2)">
+        <div style="font-size:11px;color:#a78bfa;font-weight:600;margin-bottom:4px">🤖 AI QEBD 분석</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6">"오늘 오후 스트레스 패턴이 HRV 하락과 연동되었습니다. 과거 유사 패턴에서 다음날 피로도 상승이 관측되었으니 충분한 수면을 취하세요."</div>
+      </div>
+    </div>
+
+    <!-- Rewards -->
+    <div class="card reward-card">
+      <div class="card-header">
+        <div class="card-title">🏆 건강 보상 & 게이미피케이션</div>
+        <div style="font-size:11px;color:var(--gold)">Lv. 12 헬스마스터</div>
+      </div>
+      <div class="points-display">
+        <div class="points-num" id="pointsNum">2,840</div>
+        <div class="points-label">QEBD 포인트</div>
+      </div>
+      <div class="badge-row">
+        <div class="badge unlocked">
+          <span class="b-icon">🔥</span>
+          <span>7일 연속</span>
+        </div>
+        <div class="badge unlocked">
+          <span class="b-icon">💤</span>
+          <span>수면왕</span>
+        </div>
+        <div class="badge unlocked">
+          <span class="b-icon">❤️</span>
+          <span>심박 안정</span>
+        </div>
+        <div class="badge">
+          <span class="b-icon">🏃</span>
+          <span>30일 달성</span>
+        </div>
+        <div class="badge">
+          <span class="b-icon">🧘</span>
+          <span>스트레스 0</span>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-label">
+          <span>다음 레벨까지</span>
+          <span style="color:var(--gold)">680 / 1,000 포인트</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="padding:10px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text2)">오늘 획득</div>
+          <div style="font-size:18px;font-weight:700;color:var(--gold)">+120 pt</div>
+        </div>
+        <div style="padding:10px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text2)">주간 랭킹</div>
+          <div style="font-size:18px;font-weight:700;color:var(--accent)">#7위 🚀</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Metrics -->
+  <div class="section-title">📊 핵심 건강 지표</div>
+  <div class="bento row3">
+
+    <!-- HR -->
+    <div class="card">
+      <div class="card-label">심박수</div>
+      <div class="metric-value hr-value" id="liveHR">72 <span class="metric-unit">bpm</span></div>
+      <div class="metric-change up">↑ 정상 범위</div>
+      <div class="metric-mini-chart"><canvas id="miniHR"></canvas></div>
+    </div>
+
+    <!-- SpO2 -->
+    <div class="card">
+      <div class="card-label">혈중 산소(SpO2)</div>
+      <div class="metric-value spo2-value">98 <span class="metric-unit">%</span></div>
+      <div class="metric-change up">↑ 최적</div>
+      <div class="metric-mini-chart"><canvas id="miniSpo2"></canvas></div>
+    </div>
+
+    <!-- Sleep -->
+    <div class="card">
+      <div class="card-label">수면 점수</div>
+      <div class="metric-value sleep-value">88 <span class="metric-unit">pts</span></div>
+      <div class="metric-change up">↑ +12 개선</div>
+      <div style="display:flex;gap:4px;margin-top:10px">
+        <div style="flex:1;text-align:center">
+          <div style="font-size:10px;color:var(--text2)">렘</div>
+          <div style="font-size:13px;font-weight:600">1h 40m</div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:10px;color:var(--text2)">깊은잠</div>
+          <div style="font-size:13px;font-weight:600">2h 10m</div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:10px;color:var(--text2)">총수면</div>
+          <div style="font-size:13px;font-weight:600">7h 22m</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stress -->
+    <div class="card">
+      <div class="card-label">스트레스 지수</div>
+      <div class="metric-value stress-value" id="liveStress">42 <span class="metric-unit">/100</span></div>
+      <div class="metric-change down">↓ 주의 필요</div>
+      <div style="margin-top:10px">
+        <div class="progress-bar" style="height:8px">
+          <div style="height:100%;width:42%;border-radius:10px;background:linear-gradient(90deg,var(--green),var(--orange))"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--text2)">
+          <span>안정</span><span>보통</span><span>위험</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-note">
+    QEBD Health — Samsung Galaxy Fit3 + ATsens ATP-C130 데이터 기반 AI 건강 분석<br>
+    <span style="color:rgba(255,255,255,0.2)">이 화면은 UI 프로토타입입니다. 실제 기기 연동 전 단계</span>
+  </div>
+</main>
+
+<script>
+// ── ECG Live Animation ──
+const ecgCtx = document.getElementById('ecgChart').getContext('2d');
+let ecgData = [];
+let ecgTime = 0;
+
+function genECG(t) {
+  const phase = (t % 1.0);
+  if (phase < 0.1) return Math.sin(phase * Math.PI / 0.1) * 0.05;
+  if (phase < 0.18) return -0.08 * Math.sin((phase-0.1)*Math.PI/0.08);
+  if (phase < 0.22) return 0;
+  if (phase < 0.25) return (phase-0.22)/0.03 * 0.8;
+  if (phase < 0.28) return 0.8 - (phase-0.25)/0.03 * 1.6;
+  if (phase < 0.31) return -0.8 + (phase-0.28)/0.03 * 0.6;
+  if (phase < 0.33) return -0.2 + (phase-0.31)/0.02 * 0.2;
+  if (phase < 0.42) return 0.12 * Math.sin((phase-0.33)*Math.PI/0.09);
+  return 0;
+}
+
+const POINTS = 200;
+for (let i = 0; i < POINTS; i++) ecgData.push(0);
+
+const ecgChart = new Chart(ecgCtx, {
+  type: 'line',
+  data: {
+    labels: Array(POINTS).fill(''),
+    datasets: [{
+      data: ecgData,
+      borderColor: '#10b981',
+      borderWidth: 1.5,
+      fill: false,
+      tension: 0.1,
+      pointRadius: 0,
+    }]
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: { display: false, min: -1, max: 1 }
+    },
+    elements: { line: { borderJoinStyle: 'round' } }
+  }
+});
+
+// ── HR 24h Chart ──
+const hrCtx = document.getElementById('hrChart').getContext('2d');
+const hrLabels = [];
+const hrVals = [];
+for (let h = 0; h <= 24; h++) {
+  hrLabels.push(h + ':00');
+  const base = h < 6 ? 55 + Math.random()*8 : h < 9 ? 65 + Math.random()*15 : 68 + Math.random()*20;
+  hrVals.push(Math.round(base));
+}
+new Chart(hrCtx, {
+  type: 'line',
+  data: {
+    labels: hrLabels,
+    datasets: [{
+      data: hrVals,
+      borderColor: '#ef4444',
+      backgroundColor: 'rgba(239,68,68,0.08)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: 'rgba(10,14,26,0.9)',
+      borderColor: 'rgba(255,255,255,0.1)',
+      borderWidth: 1,
+      callbacks: { label: ctx => ctx.parsed.y + ' bpm' }
+    }},
+    scales: {
+      x: { display: true, ticks: { color: '#475569', font: { size: 9 }, maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { display: true, ticks: { color: '#475569', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' }, min: 40, max: 140 }
+    }
+  }
+});
+
+// ── Mini Charts ──
+function miniChart(id, data, color) {
+  const ctx = document.getElementById(id).getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: Array(data.length).fill(''),
+      datasets: [{ data, borderColor: color, borderWidth: 1.5, fill: false, tension: 0.4, pointRadius: 0 }]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { display: false } }
+    }
+  });
+}
+miniChart('miniHR', [68,72,75,71,69,72,74,72,71,73,72], '#ef4444');
+miniChart('miniSpo2', [97,98,98,97,98,99,98,98,97,98,98], '#00d4ff');
+
+// ── Live ECG Update ──
+let bpmBase = 72;
+setInterval(() => {
+  ecgTime += 0.025;
+  ecgData.shift();
+  ecgData.push(genECG(ecgTime));
+  ecgChart.update('none');
+
+  // Random subtle HR change
+  bpmBase += (Math.random() - 0.5) * 2;
+  bpmBase = Math.max(65, Math.min(80, bpmBase));
+  document.getElementById('bpmNum').textContent = Math.round(bpmBase) + ' bpm';
+  document.getElementById('liveHR').innerHTML = Math.round(bpmBase) + ' <span class="metric-unit">bpm</span>';
+}, 40);
+
+// ── Stress live ──
+let stressBase = 42;
+setInterval(() => {
+  stressBase += (Math.random() - 0.5) * 3;
+  stressBase = Math.max(30, Math.min(65, stressBase));
+  document.getElementById('liveStress').innerHTML = Math.round(stressBase) + ' <span class="metric-unit">/100</span>';
+}, 2000);
+
+// ── Points counting animation ──
+let pts = 0;
+const target = 2840;
+const ptEl = document.getElementById('pointsNum');
+const ptTimer = setInterval(() => {
+  pts += 47;
+  if (pts >= target) { pts = target; clearInterval(ptTimer); }
+  ptEl.textContent = pts.toLocaleString();
+}, 30);
+
+// ── QEBD ring animation ──
+const ringFill = document.getElementById('ringFill');
+const circumference = 345;
+setTimeout(() => {
+  ringFill.style.strokeDashoffset = circumference * (1 - 0.85);
+}, 300);
+</script>
+</body>
+</html>
